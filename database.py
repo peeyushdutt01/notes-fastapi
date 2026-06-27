@@ -75,7 +75,7 @@ def delete_note_by_id(note_id : str, user_id : str):
         
         return result.rowcount > 0
             
-def update_note_by_id(note_id : str, user_id : str ,data : Note):
+def update_note_by_id(note_id : str, user_id : str ,data : dict):
     with Session(engine) as session:
         statement = select(Note).where(
             and_(
@@ -83,14 +83,18 @@ def update_note_by_id(note_id : str, user_id : str ,data : Note):
                 Note.user_id == user_id
                 )
             )
-        note = session.scalars(statement).one_or_none()
+        note = session.scalar(statement)
+        
         if note == None :
-            return note
-        note.title = data.title
-        note.content = data.content
+            return None
+        
+        for key, value in data.items():
+            setattr(note, key, value)
     
         session.commit()
-        return 1
+        session.refresh(note)
+        
+        return note
         
 def show_users():
     with Session(engine) as session:

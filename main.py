@@ -5,18 +5,27 @@ from pydantic import BaseModel
 from pwdlib import PasswordHash
 from tokengenerator import create_access_token, verify_token
 from fastapi.security import OAuth2PasswordBearer
+from typing import Optional
 
 app = FastAPI()
 password_hash = PasswordHash.recommended()
 
+class NoteUpdate(BaseModel):
+    title : Optional[str] | None = None 
+    content : Optional[str] | None = None
+    is_pinned : Optional[bool] | None = None
+    is_archived : Optional[bool] | None = None  
+
+
 class NoteModel(BaseModel):
-    title : str
-    content : str
+    title : str = ""
+    content : str = ""
+    
 
 class UserModel(BaseModel):
-    username : str
-    email : str
-    password : str
+    username : str 
+    email : str 
+    password : str 
 
 oauth2scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -40,18 +49,7 @@ def show_notes(note_id = None, payload = Depends(get_current_user)):
             detail="Note not found"
         )
     else:
-        return [
-            {
-            "id": n.id,
-            "title": n.title,
-            "content": n.content,
-            "modified_at": n.modified_at,
-            "created_at": n.created_at,
-            "is_pinned": n.is_pinned,
-            "is_archived": n.is_archived 
-            }       
-            for n in notes
-        ]
+        return [n for n in notes]
             
 @app.post("/notes")
 def new_note(data : NoteModel, payload = Depends(get_current_user)):
@@ -75,22 +73,21 @@ def delete_note(note_id : str, payload = Depends(get_current_user)):
             status_code=404,
             detail="not found"
         )
+    else:
+        return {"message":"success"}
          
-@app.put("/notes")
-def update_note(note_id: str, data:NoteModel, payload = Depends(get_current_user)):
+@app.patch("/notes")
+def update_note(note_id: str, data:NoteUpdate, payload = Depends(get_current_user)):
     user_id = payload["sub"]
-    note = Note(
-        title = data.title,
-        content = data.content,
-        user_id = user_id
-    )
-    updated = update_note_by_id(note_id,user_id,note)
+    update_data = data.model_dump(exclude_unset=True)
+    updated = update_note_by_id(note_id,user_id,update_data)
     
     if not updated:
         raise HTTPException(
             status_code=404,
             detail="Note not found to edit"
         )
+    return updated
    
 @app.get("/users")
 def get_users():
