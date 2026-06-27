@@ -10,3 +10,4 @@ wheels/
 .venv
 main2.py
 todo.json
+.env

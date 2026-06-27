@@ -1,8 +1,10 @@
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from database import get_note,add_note,Note,User,show_users,delete_note_by_id, update_note_by_id,register,login
 from pydantic import BaseModel
 from pwdlib import PasswordHash
+from tokengenerator import create_access_token, verify_token
+from fastapi.security import OAuth2PasswordBearer
 
 app = FastAPI()
 password_hash = PasswordHash.recommended()
@@ -16,9 +18,22 @@ class UserModel(BaseModel):
     email : str
     password : str
 
-@app.get("/notes/{note_id}")
-def show_notes(note_id = None):
-    notes = get_note(note_id)
+oauth2scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def get_current_user(token : str = Depends(oauth2scheme)):
+    payload = verify_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token"
+        )
+
+    return payload
+
+@app.get("/notes")
+def show_notes(note_id = None, payload = Depends(get_current_user)):
+    user_id = payload["sub"]
+    notes = get_note(note_id,user_id)
     if not notes:
         raise HTTPException(
             status_code=404,
@@ -39,19 +54,21 @@ def show_notes(note_id = None):
         ]
             
 @app.post("/notes")
-def new_note(data : NoteModel):
+def new_note(data : NoteModel, payload = Depends(get_current_user)):
+    
     note = Note(
         title = data.title,
         content = data.content,
+        user_id = payload['sub']
     )
-    add_note(note)
+    note_details = add_note(note)
     
-    return {"message":"success"}
+    return note_details
     
 @app.delete("/notes")
-def delete_note(note_id : int):
-    
-    deleted = delete_note_by_id(note_id)
+def delete_note(note_id : str, payload = Depends(get_current_user)):
+    user_id = payload["sub"]
+    deleted = delete_note_by_id(note_id, user_id)
     
     if not deleted:
         raise HTTPException(
@@ -60,12 +77,14 @@ def delete_note(note_id : int):
         )
          
 @app.put("/notes")
-def update_note(note_id: int, data : NoteModel):
+def update_note(note_id: str, data:NoteModel, payload = Depends(get_current_user)):
+    user_id = payload["sub"]
     note = Note(
         title = data.title,
-        content = data.content
+        content = data.content,
+        user_id = user_id
     )
-    updated = update_note_by_id(note_id,note)
+    updated = update_note_by_id(note_id,user_id,note)
     
     if not updated:
         raise HTTPException(
@@ -77,8 +96,10 @@ def update_note(note_id: int, data : NoteModel):
 def get_users():
     users = show_users()
     return [{
+        "id" : user.id,
         "username" : user.username,
-        "email" : user.email
+        "email" : user.email,
+        "password" :user.password,
     }
     for user in users
     ]
@@ -98,10 +119,8 @@ def register_user(user_data: UserModel):
             status_code=409,
             detail="Username or email already exists"
         )
-    return user
+    return {"message":"successfully registered"}
         
-    
-
 @app.post("/login")
 def login_user(user_data:UserModel):
     
@@ -124,6 +143,13 @@ def login_user(user_data:UserModel):
             detail="user not found"
         )
     
+    token = create_access_token({
+        "sub" : user_details.id,
+        "username" : user_details.username,
+    }
+    )
+    
     return{
-        "message" : "Login Successfull !"
+        "access_token" : token,
+        "token_type" : "bearer",
     }
