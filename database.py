@@ -119,15 +119,13 @@ def register(data:User):
         session.commit()
         return data
     
-def login(data:User):
+def login(identifier: str):
     with Session(engine) as session:
-        statement = select(User).where(
-            or_(
-                User.username == data.username,
-                User.email == data.email
+        return session.scalar(
+            select(User).where(
+                or_(
+                    User.username == identifier,
+                    User.email == identifier
                 )
             )
-        success = session.scalars(statement).first()
-        return success
-
-         
+        )   
