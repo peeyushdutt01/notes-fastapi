@@ -120,13 +120,13 @@ def register(data: User):
         return data
 
 
-def login(identifier: str):
+def login(identifier: dict):
     with Session(engine) as session:
         return session.scalar(
             select(User).where(
                 or_(
-                    User.username == identifier,
-                    User.email == identifier
+                    User.username == identifier["username"],
+                    User.email == identifier["email"]
                 )
             )
         )

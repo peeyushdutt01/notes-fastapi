@@ -15,8 +15,8 @@ from database import (
 from pydantic import BaseModel
 from pwdlib import PasswordHash
 from tokengenerator import generate_tokens, verify_token, verify_refresh_token
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Optional
+import re
 
 app = FastAPI()
 password_hash = PasswordHash.recommended()
@@ -93,14 +93,6 @@ def update_note(note_id: str, data: NoteModel, payload=Depends(get_current_user)
     user_id = payload["sub"]
     update_data = data.model_dump(exclude_unset=True)
     
-    # note = Note(
-    #     title = update_data["title"],
-    #     content = update_data["content"],
-    #     user_id = user_id,
-    #     is_pinned = update_data["is_pinned"],
-    #     is_archived = update_data["is_archived"]
-    # )
-    
     updated = update_note_by_id(note_id, user_id, update_data)
 
     if not updated:
@@ -125,6 +117,15 @@ def get_users():
 
 @app.post("/register")
 def register_user(user_data: UserModel):
+    x = r"^[a-zA-Z0-9._/%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+    if re.match(x, user_data.email):
+        pass
+    else:
+        raise HTTPException(
+            status_code=401,
+            detail="Wrong email format"
+            )
     hash_pwd = password_hash.hash(user_data.password)
     user = User(username=user_data.username, email=user_data.email, password=hash_pwd)
     user = register(user)
@@ -135,14 +136,15 @@ def register_user(user_data: UserModel):
 
 
 @app.post("/login")
-def login_user(
-    response:Response,form_data: OAuth2PasswordRequestForm = Depends()
-):
-    user_details = login(form_data.username)
+def login_user(response:Response,login_data : dict):
+    user_details = login({
+        "username":login_data["username"],
+        "email":login_data["email"]
+        })
 
     if user_details:
         login_success = password_hash.verify(
-            form_data.password,
+            login_data["password"],
             user_details.password
         )
 
