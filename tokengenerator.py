@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from database import add_refresh_token, validate_refresh_token
+from pwdlib import PasswordHash
+
+password_hash = PasswordHash.recommended()
 
 
 load_dotenv()
@@ -38,8 +41,8 @@ def create_refresh_token(data:dict):
     payload.update({"exp": expire})
     
     refresh_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-    
-    return add_refresh_token(payload,refresh_token)
+    hashed_refresh_token = password_hash.hash(refresh_token)
+    return add_refresh_token(payload,hashed_refresh_token)
     
 
 def verify_token(token:str):

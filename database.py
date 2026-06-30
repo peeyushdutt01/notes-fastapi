@@ -2,7 +2,9 @@ from sqlalchemy import create_engine, select, delete, or_, and_, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 from datetime import date, datetime
 import uuid
+from pwdlib import PasswordHash
 
+password_hash = PasswordHash.recommended()
 
 class Base(DeclarativeBase):
     pass
@@ -118,15 +120,6 @@ def register(data: User):
         return data
 
 
-# def login(data: User):
-#     with Session(engine) as session:
-#         statement = select(User).where(
-#             or_(User.username == data.username, User.email == data.email)
-#         )
-#         success = session.scalars(statement).first()
-#         return success
-
-
 def login(identifier: str):
     with Session(engine) as session:
         return session.scalar(
@@ -159,8 +152,13 @@ def validate_refresh_token(data : dict,refresh_token:str):
 
         if user is None:
             return None
+        
+        validated = password_hash.verify(
+            refresh_token,
+            user.refresh_token
+        )
 
-        if user.refresh_token == refresh_token:
+        if validated:
             return data
 
         return None
